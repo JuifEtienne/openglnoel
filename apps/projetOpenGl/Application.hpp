@@ -46,6 +46,8 @@ private:
 	std::vector<tinygltf::Primitive> primitives;
 	std::vector<glm::dmat4> matrix;
 
+	glm::vec3 boundingBMin, boundingBMax;
+
 	/*GLTF - TEXTURES*/
 	std::vector<glmlv::Image2DRGBA> images;
 	std::vector<GLuint> textures;

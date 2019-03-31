@@ -110,6 +110,22 @@ std::string dirnameOf(const std::string& fname)
 		: fname.substr(0, pos+1);
 }
 
+void vecMax(glm::vec3 &toMax, std::vector<double> toCompare) {
+	for (int i = 0; i < toCompare.size(); ++i) {
+		if (toMax[i] < toCompare[i]) {
+			toMax[i] = toCompare[i];
+		}
+	}
+}
+
+void vecMin(glm::vec3 &toMin, std::vector<double> toCompare) {
+	for (int i = 0; i < toCompare.size(); ++i) {
+		if (toMin[i] > toCompare[i]) {
+			toMin[i] = toCompare[i];
+		}
+	}
+}
+
 
 //______________________________________________ APPLICATION RUN FUNCTION __________________________________________________//
 
@@ -124,6 +140,8 @@ int Application::run()
 	glUniform1i(baseColorLocation, 0); // Set the uniform to 0 because we use texture unit 0
 	glUniform1i(emissionColorLocation, 1); // Set the uniform to 1 because we use texture unit 1
 	
+	//place camera
+	Trackball::moveFront(m_GLFWHandle.window(), 0, 2*boundingBMin[2]);
 
     // Loop until the user closes the window
     for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose(); ++iterationCount)
@@ -143,8 +161,8 @@ int Application::run()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		for (int i = 0; i < vaos.size(); ++i) {
-
-			MVMatrixCube = glm::translate((glm::dmat4)view->getViewMatrix()*matrix[i], glm::dvec3(0.0f, 0.0f, -5.0f));
+			
+			MVMatrixCube = glm::translate((glm::dmat4)view->getViewMatrix()*matrix[i], glm::dvec3(0, 0, -5.0f));
 			NormalMatrixCube = glm::transpose(glm::inverse(MVMatrixCube));
 
 			//Envoie des matrices
@@ -353,6 +371,8 @@ Application::Application(int argc, char** argv):
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
+	boundingBMax = glm::vec3(0.0f);
+	boundingBMin = glm::vec3(0.0f);
 
 	//TINY GLTF - VAO
 	for (int i = 0; i < model.meshes.size(); ++i) {
@@ -367,12 +387,21 @@ Application::Application(int argc, char** argv):
 			tinygltf::BufferView bufferView = model.bufferViews[indexAccessor.bufferView];
 			int bufferIndex = bufferView.buffer;
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[bufferIndex]); // Ici on bind le buffer OpenGL qui a été rempli dans la premiere boucle
-
+			
 
 			for (std::map<std::string, int>::iterator it = model.meshes[i].primitives[j].attributes.begin(); it != model.meshes[i].primitives[j].attributes.end(); ++it) {
 				//std::cout << it->first << std::endl;
 
 				tinygltf::Accessor accesor = model.accessors[model.meshes[i].primitives[j].attributes[it->first]];
+
+
+				//get max/min bounding box
+				if (numberOfComponentOf[accesor.type] == 3) {
+					vecMax(boundingBMax, accesor.maxValues);
+					vecMin(boundingBMin, accesor.minValues);
+				}
+
+
 				bufferView = model.bufferViews[accesor.bufferView];
 				bufferIndex = bufferView.buffer;
 				glBindBuffer(GL_ARRAY_BUFFER, buffers[bufferIndex]);
@@ -387,6 +416,8 @@ Application::Application(int argc, char** argv):
 			primitives.push_back(model.meshes[i].primitives[j]);
 		}
 	}
+
+	
 
 	for (int i = 0; i < primitives.size(); ++i) {
 		matrix.push_back(glm::mat4(1.0f));
@@ -425,8 +456,8 @@ Application::Application(int argc, char** argv):
   for (int i = 0; i < matrix.size(); ++i) {
 	  printMatrix(matrix[i]);
 	  std::cout << std::endl;
-  }
-  */
+  }*/
+  
 
   //______________________________________________ GEOMETRY PASS - PROGRAM __________________________________________________//	
 

@@ -97,73 +97,78 @@ int Application::run()
 
 
         //Lecture
-        if(printTexture == 1){
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FBO);
-            glReadBuffer(GL_COLOR_ATTACHMENT0 + textureToPrint);
-            glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight,  GL_COLOR_BUFFER_BIT, GL_LINEAR);
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-        }   
-        else{
+        
+		programShading.use();
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_BeautyFBO);
 
-            programShading.use();
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_BeautyFBO);
-
-			glViewport(0, 0, m_nWindowWidth, m_nWindowHeight);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glViewport(0, 0, m_nWindowWidth, m_nWindowHeight);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             
-            //Lightning - General
-            glUniform3fv( directionalLightDir, 1, glm::value_ptr( view.getViewMatrix() * glm::vec4(sin(anglePhi)*cos(angleTheta), sin(anglePhi)*sin(angleTheta), cos(anglePhi), 0)));
-            glUniform3fv( directionalLightIntensity, 1, glm::value_ptr( colorDir*intensityDir ));
+		//Lightning - General
+		glUniform3fv( directionalLightDir, 1, glm::value_ptr( view.getViewMatrix() * glm::vec4(sin(anglePhi)*cos(angleTheta), sin(anglePhi)*sin(angleTheta), cos(anglePhi), 0)));
+		glUniform3fv( directionalLightIntensity, 1, glm::value_ptr( colorDir*intensityDir ));
             
 
-            for(int i = 0; i < 5; ++i){
-                glActiveTexture(GL_TEXTURE0 + i);
-                glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[i]);
-            }
+		for(int i = GPosition; i < GDepth; ++i){
+			glActiveTexture(GL_TEXTURE0 + i);
+			glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[i]);
+		}
 
-            glUniform1i(positionLocation, 0); // Set the uniform to 0 because we use texture unit 0
-            glUniform1i(normalLocation, 1); // Set the uniform to 1 because we use texture unit 1
-            glUniform1i(ambientLocation, 2);
-            glUniform1i(diffuseLocation, 3);
-            glUniform1i(glossyLocation, 4);
+		glUniform1i(positionLocation, 0); // Set the uniform to 0 because we use texture unit 0
+		glUniform1i(normalLocation, 1); // Set the uniform to 1 because we use texture unit 1
+		glUniform1i(ambientLocation, 2);
+		glUniform1i(diffuseLocation, 3);
+		glUniform1i(glossyLocation, 4);
 
-			glBindVertexArray(vaoQuad);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-			glBindVertexArray(0);
+		glBindVertexArray(vaoQuad);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
 
-            /*for(int i = 0; i < 5; ++i){ //
-                glActiveTexture(GL_TEXTURE0 + i);
-                glBindTexture(GL_TEXTURE_2D, 0);
-            }*/
+		/*for(int i = 0; i < 5; ++i){ //
+			glActiveTexture(GL_TEXTURE0 + i);
+			glBindTexture(GL_TEXTURE_2D, 0);
+		}*/
 
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
+		
+
+		//GAMMA CORRECTION
+		m_gammaCorrectionProgram.use();
+			
+		glUniform1f(m_uGammaExponent, 1.f / gamma);
+		glBindImageTexture(0, m_BeautyTexture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
+		glBindImageTexture(1, m_GammaCorrectedBeautyTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		
+		glDispatchCompute(m_nWindowWidth, m_nWindowHeight, 1);
+
+		const auto viewportSize = m_GLFWHandle.framebufferSize();
+		glViewport(0, 0, viewportSize.x, viewportSize.y);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		
+		if (printTexture == 1) {
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FBO);
+			glReadBuffer(GL_COLOR_ATTACHMENT0 + textureToPrint);
+			glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		}
+		else if (printTexture == 2) {
 			/*TEST POUR POST-PROCESSING*/
-
-			/*glBindFramebuffer(GL_READ_FRAMEBUFFER, m_BeautyFBO);
+		//_____________________________________________________________________________________________
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, m_BeautyFBO);
 			glReadBuffer(GL_COLOR_ATTACHMENT0);
 			glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);*/
-
-			//GAMMA CORRECTION
-			m_gammaCorrectionProgram.use();
-
-			glUniform1f(m_uGammaExponent, 1.f / gamma);
-			glBindImageTexture(0, m_BeautyTexture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
-			glBindImageTexture(1, m_GammaCorrectedBeautyTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-
-			glDispatchCompute(m_nWindowWidth, m_nWindowHeight, 1);
-
-			const auto viewportSize = m_GLFWHandle.framebufferSize();
-			glViewport(0, 0, viewportSize.x, viewportSize.y);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		}
+		else {
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, m_GammaCorrectedBeautyFBO);
 			glReadBuffer(GL_COLOR_ATTACHMENT0);
 			glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight,
 				0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-        }
+		}
+
 
         // GUI code:
 		glmlv::imguiNewFrame();
@@ -180,6 +185,7 @@ int Application::run()
             }
             ImGui::RadioButton("Result", &printTexture, 0);  ImGui::SameLine();
             ImGui::RadioButton("One texture", &printTexture, 1);
+			ImGui::RadioButton("Beauty", &printTexture, 2);
             if (ImGui::CollapsingHeader("FrameBuffer image"))
             {
                 ImGui::RadioButton("GPosition", &textureToPrint, 0);  ImGui::SameLine();
@@ -327,7 +333,7 @@ Application::Application(int argc, char** argv):
     for(int i = 0; i < GBufferTextureCount; ++i){
         glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[i]);
         glTexStorage2D(GL_TEXTURE_2D, 1, m_GBufferTextureFormat[i], m_nWindowWidth, m_nWindowHeight);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        //glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     //FBO
@@ -417,7 +423,7 @@ Application::Application(int argc, char** argv):
 
 	glBindTexture(GL_TEXTURE_2D, m_BeautyTexture);
 	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGB32F, m_nWindowWidth, m_nWindowHeight);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	//glBindTexture(GL_TEXTURE_2D, 0);
 
 	//FBO
 	glGenFramebuffers(1, &m_BeautyFBO);
@@ -434,16 +440,9 @@ Application::Application(int argc, char** argv):
 		throw std::runtime_error("FBO error");
 	}
 
-	//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
 	//_____________________________________________________PROGRAM  GAMMA CORRECTION___________________________________________________________________________________________
-
-	const auto pathToGCCS = m_ShadersRootPath / m_AppName / "gammaCorrect.cs.glsl";
-
-	m_gammaCorrectionProgram = glmlv::compileProgram({ pathToGCCS });
-	m_gammaCorrectionProgram.use();
-
-	m_uGammaExponent = m_gammaCorrectionProgram.getUniformLocation("uGammaExponent");
 
 	glGenTextures(1, &m_GammaCorrectedBeautyTexture);
 
@@ -464,5 +463,12 @@ Application::Application(int argc, char** argv):
 	}
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+	const auto pathToGCCS = m_ShadersRootPath / m_AppName / "gammaCorrect.cs.glsl";
+
+	m_gammaCorrectionProgram = glmlv::compileProgram({ pathToGCCS });
+	m_gammaCorrectionProgram.use();
+
+	m_uGammaExponent = m_gammaCorrectionProgram.getUniformLocation("uGammaExponent");
 
 }
