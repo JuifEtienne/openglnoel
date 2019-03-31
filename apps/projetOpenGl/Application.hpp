@@ -98,10 +98,17 @@ private:
 	/*QUAD - GEOMETRY*/
 	GLuint vboQuad, vaoQuad, iboQuad;
 
+	/*BEAUTY TEXTURE*/
+	GLuint m_BeautyTexture;
+	GLuint m_BeautyFBO;
+
 	/*GAMMA CORRECTION - PROGRAM*/
 	glmlv::GLProgram m_gammaCorrectionProgram;
 
 	GLint m_uGammaExponent;
+
+	GLuint m_GammaCorrectTexture;
+	GLuint m_GammaCorrectFBO;
 
 	/*APP RUN VARIABLES*/
 	glm::mat4 ProjMatrix;
