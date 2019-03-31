@@ -13,6 +13,9 @@
 #include <glmlv/ViewController.hpp>
 #include "Trackball.hpp"
 
+
+//______________________________________________ PARSING GLTF TO GET MATERIALS __________________________________________________//
+
 void Application::PrintParameterMap(const tinygltf::ParameterMap &pmap) {
 
 	for (auto &kv : pmap) {
@@ -57,6 +60,8 @@ void Application::PrintParameterMap(const tinygltf::ParameterMap &pmap) {
 		}
 	}
 }
+
+//______________________________________________ USEFUL TRANSFORMATION FUNCTIONS __________________________________________________//
 
 glm::dmat4 matrixToMat4(std::vector<double> tab) {
 	glm::dmat4 mat{ tab[0], tab[1], tab[2], tab[3],
@@ -106,6 +111,8 @@ std::string dirnameOf(const std::string& fname)
 }
 
 
+//______________________________________________ APPLICATION RUN FUNCTION __________________________________________________//
+
 int Application::run()
 {
     program.use();
@@ -113,10 +120,9 @@ int Application::run()
     ProjMatrix = glm::perspective(glm::radians(70.f), 1.0f*m_nWindowWidth / m_nWindowHeight, 0.1f, 100.0f);
 
 	//Change unit texture
+	//Not Changing during render
 	glUniform1i(baseColorLocation, 0); // Set the uniform to 0 because we use texture unit 0
 	glUniform1i(emissionColorLocation, 1); // Set the uniform to 1 because we use texture unit 1
-
-    //glClearColor(1,0,0,1);
 	
 
     // Loop until the user closes the window
@@ -125,19 +131,11 @@ int Application::run()
 
         const auto seconds = glfwGetTime();
 		
-        // Put here rendering code
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         const auto fbSize = m_GLFWHandle.framebufferSize();
 
+		//______________________________________________ GEOMETRY PASS __________________________________________________//
 
-		//Lightning - General
-		//programShading.use();
-		//glUniform3fv(directionalLightDir, 1, glm::value_ptr(view.getViewMatrix() * glm::vec4(sin(anglePhi)*cos(angleTheta), sin(anglePhi)*sin(angleTheta), cos(anglePhi), 0)));
-		//glUniform3fv(directionalLightIntensity, 1, glm::value_ptr(colorDir*intensityDir));
-
-
-		//DRAW
-		// Put here rendering code
 		program.use();
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_FBO);
 
@@ -146,7 +144,6 @@ int Application::run()
 
 		for (int i = 0; i < vaos.size(); ++i) {
 
-			//printMatrix(matrix[i]);
 			MVMatrixCube = glm::translate((glm::dmat4)view->getViewMatrix()*matrix[i], glm::dvec3(0.0f, 0.0f, -5.0f));
 			NormalMatrixCube = glm::transpose(glm::inverse(MVMatrixCube));
 
@@ -155,9 +152,7 @@ int Application::run()
 			glUniformMatrix4fv(modelViewMatrix, 1, GL_FALSE, glm::value_ptr(MVMatrixCube));
 			glUniformMatrix4fv(normalMatrix, 1, GL_FALSE, glm::value_ptr(NormalMatrixCube));
 
-			//BASE COLOR
-
-			//get elements for texture for emis and base colors
+			//get elements for texture, emission and base colors
 			PrintParameterMap(model.materials[primitives[i].material].additionalValues);
 			PrintParameterMap(model.materials[primitives[i].material].values);
 
@@ -191,7 +186,7 @@ int Application::run()
 			glBindVertexArray(0);
 
 
-			//for next
+			//Reinit for next
 			baseColorTextureID = -1;
 			baseColorTexCoord = -1;
 			emisColorTextureID = -1;
@@ -199,23 +194,23 @@ int Application::run()
 		}
 
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	
-		//std::cout << "test2" << std::endl;
+		
+		//______________________________________________ SHADING PASS __________________________________________________//
 
 		glViewport(0, 0, fbSize.x, fbSize.y);
-
         glBindTexture(GL_TEXTURE_2D, 0);
-		//glClear(GL_COLOR_BUFFER_BIT);
 
-		//Lecture
+
 		if (printTexture == 1) {
+			/*___________________ DISPLAY GBUFFER TEXTURES _____________________*/
+
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FBO);
 			glReadBuffer(GL_COLOR_ATTACHMENT0 + textureToPrint);
 			glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 			glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 		}
 		else {
-
+			/*___________________ SHADING PROGRAM _____________________*/
 			programShading.use();
 			glBindVertexArray(vaoQuad);
 
@@ -243,11 +238,11 @@ int Application::run()
 
 		}
 
-        // GUI code:
+		//______________________________________________ GUI __________________________________________________//
 		glmlv::imguiNewFrame();
 
         {
-            ImGui::Begin("GUI");
+            ImGui::Begin("Application Parameters");
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
             if (ImGui::CollapsingHeader("Directional Light"))
@@ -267,7 +262,6 @@ int Application::run()
 				ImGui::RadioButton("GDiffuse", &textureToPrint, 3);
 			}
             ImGui::End();
-            //ImGui::ShowDemoWindow();
         }
 
 		glmlv::imguiRenderFrame();
@@ -287,6 +281,8 @@ int Application::run()
     return 0;
 }
 
+//______________________________________________ APPLICATION CONSTRUCTOR __________________________________________________//
+
 Application::Application(int argc, char** argv):
     m_AppPath { glmlv::fs::path{ argv[0] } },
     m_AppName { m_AppPath.stem().string() },
@@ -295,14 +291,16 @@ Application::Application(int argc, char** argv):
     m_AssetsRootPath { m_AppPath.parent_path() / "assets" },
 	view { new Trackball(m_GLFWHandle.window(), 10) },
 	anglePhi(1),
-	angleTheta(1),
-    intensityDir(1),
+	angleTheta(4),
+    intensityDir(2),
     colorDir {0.7,0.7,0.7},
 	textureToPrint{ 3 },
 	printTexture{ 0 }
 {
 	ImGui::GetIO().IniFilename = m_ImGuiIniFilename.c_str(); // At exit, ImGUI will store its windows positions in this file
 
+
+	//______________________________________________ OBJECT LOADING AND INITIALIZATION __________________________________________________//
 
 	// Put here initialization code
 	glEnable(GL_DEPTH_TEST);
@@ -328,8 +326,6 @@ Application::Application(int argc, char** argv):
 
 	attribEnum.insert({ 4, GL_TRIANGLES });
 
-
-
 	//TINY GLTF
 	std::cout << argv[1] << std::endl;
 
@@ -347,7 +343,7 @@ Application::Application(int argc, char** argv):
 		printf("Failed to parse glTF\n");
 	}
 
-
+	//TINY GLTF - VBO
 	std::vector<GLuint> buffers(model.buffers.size()); // un par tinygltf::Buffer / c'est les vbos
 
 	glGenBuffers(buffers.size(), buffers.data());
@@ -358,7 +354,7 @@ Application::Application(int argc, char** argv):
 	}
 
 
-
+	//TINY GLTF - VAO
 	for (int i = 0; i < model.meshes.size(); ++i) {
 		for (int j = 0; j < model.meshes[i].primitives.size(); ++j) {
 			GLuint vaoId;
@@ -391,16 +387,12 @@ Application::Application(int argc, char** argv):
 			primitives.push_back(model.meshes[i].primitives[j]);
 		}
 	}
-	//std::cout << vaos.size() << std::endl;
 
 	for (int i = 0; i < primitives.size(); ++i) {
 		matrix.push_back(glm::mat4(1.0f));
 	}
-	/*for (int i = 0; i < matrix.size(); ++i) {
-		printMatrix(matrix[i]);
-	}
-	//get my matrix
-  */
+
+	//MATRIX TRANSFORM
 
   /*for (int i = 0; i < model.nodes.size(); ++i)
   {
@@ -436,15 +428,15 @@ Application::Application(int argc, char** argv):
   }
   */
 
-  //PROGRAM
-	const auto pathToSMVS = m_ShadersRootPath / m_AppName / "projet.vs.glsl";
-	const auto pathToSMFS = m_ShadersRootPath / m_AppName / "projet.fs.glsl";
+  //______________________________________________ GEOMETRY PASS - PROGRAM __________________________________________________//	
 
-	program = glmlv::compileProgram({ pathToSMVS, pathToSMFS });
+	const auto pathToGPVS = m_ShadersRootPath / m_AppName / "projet.vs.glsl";
+	const auto pathToGPFS = m_ShadersRootPath / m_AppName / "projet.fs.glsl";
+
+	program = glmlv::compileProgram({ pathToGPVS, pathToGPFS });
 	program.use();
 
 	//TEXTURES
-
 	for (int i = 0; i < model.images.size(); ++i) {
 		std::cout << dirnameOf(argv[1]) + model.images[i].uri << std::endl;
 		images.push_back(glmlv::readImage(dirnameOf(argv[1]) + model.images[i].uri));
@@ -475,16 +467,12 @@ Application::Application(int argc, char** argv):
 		samplers.push_back(sampler);
 	}
 
-	//getUniform
-	//MATRIX
+	//UNIFORM
+
+	//Matrix
 	modelViewProjMatrix = program.getUniformLocation("uModelViewProjMatrix");
 	modelViewMatrix = program.getUniformLocation("uModelViewMatrix");
 	normalMatrix = program.getUniformLocation("uNormalMatrix");
-
-
-	//LIGHT
-	//directionalLightDir = program.getUniformLocation("uDirectionalLightDir");
-	//directionalLightIntensity = program.getUniformLocation("uDirectionalLightIntensity"); 
 
 	//samplerLocation
 	baseColorLocation = program.getUniformLocation("uBaseColor");
@@ -495,20 +483,19 @@ Application::Application(int argc, char** argv):
 	emissionCoord = program.getUniformLocation("uEmissionCoord");
 
 	//factor
-	baseColorFactor = program.getUniformLocation("uBaseFactor");;
+	baseColorFactor = program.getUniformLocation("uBaseFactor");
 	emissionColorFactor = program.getUniformLocation("uEmissionFactor");
 
 
-	//_____________________________________________________PROGRAM   SHADING SHADER___________________________________________________________________________________________
+	//______________________________________________ SHADING PASS - PROGRAM __________________________________________________//
 
-	//PROGRAM SHADING
-	const auto pathToSMVS2 = m_ShadersRootPath / m_AppName / "shadingPass.vs.glsl";
-	const auto pathToSMFS2 = m_ShadersRootPath / m_AppName / "shadingPass.fs.glsl";
+	const auto pathToSPVS = m_ShadersRootPath / m_AppName / "shadingPass.vs.glsl";
+	const auto pathToSPFS = m_ShadersRootPath / m_AppName / "shadingPass.fs.glsl";
 
-	programShading = glmlv::compileProgram({ pathToSMVS2, pathToSMFS2 });
+	programShading = glmlv::compileProgram({ pathToSPVS, pathToSPFS });
 	programShading.use();
 
-	//Deferred
+	//Textures
 	glGenTextures(GBufferTextureCount, m_GBufferTextures);
 
 	for (int i = 0; i < GBufferTextureCount; ++i) {
@@ -548,8 +535,9 @@ Application::Application(int argc, char** argv):
 	ambientLocation = programShading.getUniformLocation("uGAmbient");
 	diffuseLocation = programShading.getUniformLocation("uGDiffuse");
 
-	//Construction cube
 
+	//______________________________________________ QUAD GEOMETRY - FOR DEFERRED __________________________________________________//
+	
 	glGenBuffers(1, &vboQuad);
 	glGenBuffers(1, &iboQuad);
 	glGenVertexArrays(1, &vaoQuad);
@@ -589,17 +577,15 @@ Application::Application(int argc, char** argv):
 	glBindVertexArray(0);
 
 
-	const auto pathToGCCS = m_ShadersRootPath / m_AppName / "gammaCorrect.cs.glsl";
+	//______________________________________________ GAMMA CORRECTION - PROGRAM __________________________________________________//
+
+	/*const auto pathToGCCS = m_ShadersRootPath / m_AppName / "gammaCorrect.cs.glsl";
 
 	m_gammaCorrectionProgram = glmlv::compileProgram({ pathToGCCS });
 	m_gammaCorrectionProgram.use();
 
-	m_uGammaExponent = m_gammaCorrectionProgram.getUniformLocation("uGammaExponent");
+	m_uGammaExponent = m_gammaCorrectionProgram.getUniformLocation("uGammaExponent");*/
 }
-
-
-
-
 
 
 
